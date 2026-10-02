@@ -9,7 +9,7 @@ DEBUG     = target/debug/$(BIN)
 # Idle timeout (seconds) used by the `watch` / `run` targets.
 IDLE     ?= 300
 
-# Optional WGSL shader file. Empty = bundled plasma effect.
+# Optional WGSL shader file. Empty = bundled default effect.
 #   make run SHADER=shaders/plasma.wgsl
 SHADER   ?=
 SHADER_ARG = $(if $(SHADER),--shader $(SHADER),)

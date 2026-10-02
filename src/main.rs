@@ -81,6 +81,6 @@ fn print_help() {
          \u{20}   scrnsav show  [--shader PATH]         Run the saver now (exits on input)\n\
          \u{20}   scrnsav watch [secs] [--shader PATH]  Watch for idle, then launch the saver\n\
          \n\
-         Without --shader, a bundled plasma effect is used. Default idle is 300s.\n"
+         Without --shader, a bundled default effect is used. Default idle is 300s.\n"
     );
 }

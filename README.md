@@ -41,7 +41,7 @@ cargo build --release
 # Preview an effect right now (any input exits):
 ./target/release/scrnsav show
 
-# Use a custom shader instead of the bundled plasma:
+# Use a different shader instead of the bundled default:
 ./target/release/scrnsav show --shader shaders/plasma.wgsl
 
 # Run the idle daemon (fires after 300s; pass seconds to override).
@@ -80,11 +80,11 @@ systemctl --user enable --now scrnsav.service
 
 Effects live in `shaders/` as WGSL. Two are included:
 
-- `plasma.wgsl` — the bundled default (classic plasma).
+- `lines.wgsl` — the bundled default: a retro vector line strung between two
+  bouncing points, trailing a colour-cycling ribbon.
+- `plasma.wgsl` — classic plasma; run it with `--shader shaders/plasma.wgsl`.
 - `ball.wgsl` — retro bouncing balls with a phosphor afterimage trail; run it
   with `--shader shaders/ball.wgsl`.
-- `lines.wgsl` — retro vector line strung between two bouncing points, trailing
-  a colour-cycling ribbon; run it with `--shader shaders/lines.wgsl`.
 
 The fragment shader gets a uniform:
 

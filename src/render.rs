@@ -22,7 +22,7 @@ use winit::window::{Fullscreen, Window, WindowId};
 const GRACE: Duration = Duration::from_millis(700);
 
 /// Bundled effect, used when no `--shader` is given.
-const DEFAULT_SHADER: &str = include_str!("../shaders/plasma.wgsl");
+const DEFAULT_SHADER: &str = include_str!("../shaders/lines.wgsl");
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -430,7 +430,7 @@ mod tests {
 }
 
 /// Run the saver. `shader` is a path to a WGSL file; when `None`, the bundled
-/// plasma effect is used.
+/// default effect is used.
 pub fn run(shader: Option<String>) -> anyhow::Result<()> {
     let shader_src = match shader {
         Some(path) => std::fs::read_to_string(&path)
