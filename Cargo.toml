@@ -1,0 +1,15 @@
+[package]
+name = "scrnsav"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.104"
+bytemuck = { version = "1.25.2", features = ["derive"] }
+env_logger = "0.11.11"
+futures-util = "0.3.34"
+log = "0.4.34"
+pollster = "1.0.1"
+wgpu = "30.0.1"
+winit = "0.30.13"
+zbus = "5.19.0"

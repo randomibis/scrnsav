@@ -1,0 +1,15 @@
+[Unit]
+Description=scrnsav — Wayland idle screensaver
+# Only in a graphical session
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+# Adjust the path to your built binary and the idle timeout (seconds).
+ExecStart=%h/Code/randomibis/scrnsav/target/release/scrnsav watch 300
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
