@@ -270,6 +270,12 @@ fn init(
     }))
     .context("requesting GPU device")?;
 
+    // Capture shader-compile and pipeline-creation validation errors (e.g. a
+    // broken `--shader` file, or one that parses but exceeds this GPU's limits)
+    // instead of letting wgpu's default handler panic. Scope spans every
+    // pipeline too, so it must be popped after the surfaces are built below.
+    let error_scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
+
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("saver shader"),
         source: wgpu::ShaderSource::Wgsl(shader_src.into()),
@@ -311,6 +317,10 @@ fn init(
         surfaces.insert(surf.window.id(), surf);
     }
 
+    if let Some(err) = pollster::block_on(error_scope.pop()) {
+        anyhow::bail!("shader failed to compile:\n{err}");
+    }
+
     Ok((gpu, surfaces))
 }
 
@@ -321,6 +331,8 @@ struct App {
     start: Option<Instant>,
     launched_at: Option<Instant>,
     shader_src: String,
+    /// Set if setup failed inside the event loop, so `run` can report it.
+    init_error: Option<anyhow::Error>,
 }
 
 impl App {
@@ -344,7 +356,7 @@ impl ApplicationHandler for App {
                 self.launched_at = Some(Instant::now());
             }
             Err(e) => {
-                log::error!("init failed: {e:#}");
+                self.init_error = Some(e);
                 event_loop.exit();
             }
         }
@@ -433,5 +445,8 @@ pub fn run(shader: Option<String>) -> anyhow::Result<()> {
         ..Default::default()
     };
     event_loop.run_app(&mut app).context("running event loop")?;
+    if let Some(e) = app.init_error {
+        return Err(e);
+    }
     Ok(())
 }
