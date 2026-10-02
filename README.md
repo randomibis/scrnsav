@@ -78,8 +78,13 @@ systemctl --user enable --now scrnsav.service
 
 ## Writing new effects
 
-Effects live in `shaders/` as WGSL. `plasma.wgsl` is the bundled default. The
-fragment shader gets a uniform:
+Effects live in `shaders/` as WGSL. Two are included:
+
+- `plasma.wgsl` — the bundled default (classic plasma).
+- `ball.wgsl` — retro bouncing balls with a phosphor afterimage trail; run it
+  with `--shader shaders/ball.wgsl`.
+
+The fragment shader gets a uniform:
 
 ```wgsl
 struct Uniforms { time: f32, seed: f32, resolution: vec2<f32>, };
