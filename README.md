@@ -83,6 +83,8 @@ Effects live in `shaders/` as WGSL. Two are included:
 - `plasma.wgsl` — the bundled default (classic plasma).
 - `ball.wgsl` — retro bouncing balls with a phosphor afterimage trail; run it
   with `--shader shaders/ball.wgsl`.
+- `lines.wgsl` — retro vector line strung between two bouncing points, trailing
+  a colour-cycling ribbon; run it with `--shader shaders/lines.wgsl`.
 
 The fragment shader gets a uniform:
 
