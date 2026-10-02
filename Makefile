@@ -60,15 +60,15 @@ fmt:
 clippy:
 	$(CARGO) clippy --all-targets
 
-## install: build + install and enable the systemd --user service
+## install: build + install and enable the service (IDLE=<secs>, SHADER=<path>)
 .PHONY: install
 install: build
 	mkdir -p $(UNIT_DIR)
-	sed 's|%h/Code/randomibis/scrnsav/target/release/scrnsav|$(CURDIR)/$(RELEASE)|' \
+	sed 's|^ExecStart=.*|ExecStart=$(CURDIR)/$(RELEASE) watch $(IDLE) $(SHADER_ARG)|' \
 		$(UNIT) > $(UNIT_DIR)/$(UNIT)
 	systemctl --user daemon-reload
 	systemctl --user enable --now $(UNIT)
-	@echo "Installed. Tip: disable GNOME's own blank so scrnsav wins:"
+	@echo "Installed: watch $(IDLE)s. Tip: disable GNOME's own blank so scrnsav wins:"
 	@echo "  gsettings set org.gnome.desktop.session idle-delay 0"
 
 ## uninstall: stop and remove the systemd --user service
