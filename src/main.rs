@@ -56,6 +56,23 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_secs_and_shader() {
+        let args = [
+            "60".to_string(),
+            "--shader".to_string(),
+            "x.wgsl".to_string(),
+        ];
+        let opts = parse_opts(&args);
+        assert_eq!(opts.secs, Some(60));
+        assert_eq!(opts.shader.as_deref(), Some("x.wgsl"));
+    }
+}
+
 fn print_help() {
     println!(
         "scrnsav — a Wayland/GNOME screensaver\n\

@@ -406,6 +406,17 @@ impl ApplicationHandler for App {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::Uniforms;
+
+    #[test]
+    fn uniforms_match_wgsl_layout() {
+        // Must stay 16 bytes to match `struct Uniforms` in the WGSL shaders.
+        assert_eq!(std::mem::size_of::<Uniforms>(), 16);
+    }
+}
+
 /// Run the saver. `shader` is a path to a WGSL file; when `None`, the bundled
 /// plasma effect is used.
 pub fn run(shader: Option<String>) -> anyhow::Result<()> {
