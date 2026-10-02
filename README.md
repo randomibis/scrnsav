@@ -98,3 +98,7 @@ To use your own effect, write a `.wgsl` file with `vs_main`/`fs_main` entry
 points (copy `plasma.wgsl` as a starting point) and pass it with `--shader PATH`
 — no rebuild needed. The default is compiled in, so `scrnsav show` always works
 with no arguments.
+
+Run `make test` (or `cargo test`) to validate every shader in `shaders/` — it
+parses and validates them with naga (the same compiler wgpu uses), catching
+errors without launching the GUI.

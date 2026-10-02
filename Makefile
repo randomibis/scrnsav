@@ -45,6 +45,11 @@ watch: build
 check:
 	$(CARGO) check
 
+## test: run tests (includes validating every shader in shaders/)
+.PHONY: test
+test:
+	$(CARGO) test
+
 ## fmt: format the source
 .PHONY: fmt
 fmt:
