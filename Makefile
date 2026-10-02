@@ -9,6 +9,11 @@ DEBUG     = target/debug/$(BIN)
 # Idle timeout (seconds) used by the `watch` / `run` targets.
 IDLE     ?= 300
 
+# Optional WGSL shader file. Empty = bundled plasma effect.
+#   make run SHADER=shaders/plasma.wgsl
+SHADER   ?=
+SHADER_ARG = $(if $(SHADER),--shader $(SHADER),)
+
 # Where the systemd user unit gets installed.
 UNIT_DIR  = $(HOME)/.config/systemd/user
 UNIT      = scrnsav.service
@@ -28,12 +33,12 @@ debug:
 ## run: build release, then run the saver fullscreen now (any input exits)
 .PHONY: run
 run: build
-	$(RELEASE) show
+	$(RELEASE) show $(SHADER_ARG)
 
 ## watch: build release, then run the idle daemon (IDLE=<secs>, with logging)
 .PHONY: watch
 watch: build
-	RUST_LOG=info $(RELEASE) watch $(IDLE)
+	RUST_LOG=info $(RELEASE) watch $(IDLE) $(SHADER_ARG)
 
 ## check: fast type-check without producing a binary
 .PHONY: check

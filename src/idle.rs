@@ -30,7 +30,7 @@ trait IdleMonitor {
     fn watch_fired(&self, id: u32) -> zbus::Result<()>;
 }
 
-pub async fn run(timeout_ms: u64) -> anyhow::Result<()> {
+pub async fn run(timeout_ms: u64, shader: Option<String>) -> anyhow::Result<()> {
     let conn = zbus::Connection::session()
         .await
         .context("connecting to the session bus")?;
@@ -60,7 +60,7 @@ pub async fn run(timeout_ms: u64) -> anyhow::Result<()> {
             if running {
                 continue;
             }
-            match spawn_show() {
+            match spawn_show(shader.as_deref()) {
                 Ok(c) => {
                     log::info!("idle: launched saver (pid {})", c.id());
                     child = Some(c);
@@ -84,11 +84,14 @@ pub async fn run(timeout_ms: u64) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn spawn_show() -> anyhow::Result<Child> {
+fn spawn_show(shader: Option<&str>) -> anyhow::Result<Child> {
     let exe = std::env::current_exe().context("resolving own executable path")?;
-    std::process::Command::new(exe)
-        .arg("show")
-        .spawn()
+    let mut cmd = std::process::Command::new(exe);
+    cmd.arg("show");
+    if let Some(path) = shader {
+        cmd.arg("--shader").arg(path);
+    }
+    cmd.spawn()
         .context("spawning saver process")
         .map_err(Into::into)
 }

@@ -41,10 +41,17 @@ cargo build --release
 # Preview an effect right now (any input exits):
 ./target/release/scrnsav show
 
-# Run the idle daemon (fires after 300s; pass seconds to override):
+# Use a custom shader instead of the bundled plasma:
+./target/release/scrnsav show --shader shaders/plasma.wgsl
+
+# Run the idle daemon (fires after 300s; pass seconds to override).
+# --shader is forwarded to each saver it launches:
 ./target/release/scrnsav watch 300
+./target/release/scrnsav watch 60 --shader shaders/plasma.wgsl
 RUST_LOG=info ./target/release/scrnsav watch 60   # with logging
 ```
+
+With `make`, pass `SHADER=`: `make run SHADER=shaders/plasma.wgsl`.
 
 ## Important: stop GNOME from blanking first
 
@@ -71,13 +78,18 @@ systemctl --user enable --now scrnsav.service
 
 ## Writing new effects
 
-Effects live in `shaders/` as WGSL. `plasma.wgsl` is the example. The fragment
-shader gets a uniform:
+Effects live in `shaders/` as WGSL. `plasma.wgsl` is the bundled default. The
+fragment shader gets a uniform:
 
 ```wgsl
-struct Uniforms { time: f32, resolution: vec2<f32>, };
+struct Uniforms { time: f32, seed: f32, resolution: vec2<f32>, };
 ```
 
 `frag.xy / u.resolution` gives normalized coordinates; `u.time` is seconds since
-launch. To add a shader, drop in a `.wgsl` file and point the `include_str!` in
-`src/render.rs` at it (a runtime picker/`--shader` flag is an obvious next step).
+launch; `u.seed` is a per-monitor phase offset (so multi-monitor setups show a
+different variation on each screen — fold it into your math to make use of it).
+
+To use your own effect, write a `.wgsl` file with `vs_main`/`fs_main` entry
+points (copy `plasma.wgsl` as a starting point) and pass it with `--shader PATH`
+— no rebuild needed. The default is compiled in, so `scrnsav show` always works
+with no arguments.

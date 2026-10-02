@@ -1,19 +1,51 @@
 mod idle;
 mod render;
 
+/// Parsed options shared by the subcommands.
+struct Opts {
+    /// Idle timeout in seconds (first bare number), used by `watch`.
+    secs: Option<u64>,
+    /// Path to a WGSL shader file (`--shader PATH`).
+    shader: Option<String>,
+}
+
+fn parse_opts(args: &[String]) -> Opts {
+    let mut secs = None;
+    let mut shader = None;
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--shader" | "-s" => {
+                shader = args.get(i + 1).cloned();
+                i += 2;
+            }
+            other => {
+                if let Ok(n) = other.parse::<u64>() {
+                    secs = Some(n);
+                }
+                i += 1;
+            }
+        }
+    }
+    Opts { secs, shader }
+}
+
 fn main() -> anyhow::Result<()> {
     env_logger::init();
 
-    let mode = std::env::args().nth(1).unwrap_or_else(|| "show".into());
-    match mode.as_str() {
-        "show" => render::run()?,
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let mode = args.first().map(String::as_str).unwrap_or("show");
+    let rest = args.get(1..).unwrap_or(&[]);
+
+    match mode {
+        "show" => {
+            let opts = parse_opts(rest);
+            render::run(opts.shader)?;
+        }
         "watch" => {
-            // Idle timeout in seconds (default 5 min), passed to Mutter in ms.
-            let secs: u64 = std::env::args()
-                .nth(2)
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(300);
-            pollster::block_on(idle::run(secs * 1000))?;
+            let opts = parse_opts(rest);
+            let secs = opts.secs.unwrap_or(300);
+            pollster::block_on(idle::run(secs * 1000, opts.shader))?;
         }
         "-h" | "--help" | "help" => print_help(),
         other => {
@@ -29,7 +61,9 @@ fn print_help() {
         "scrnsav — a Wayland/GNOME screensaver\n\
          \n\
          USAGE:\n\
-         \u{20}   scrnsav show          Run the fullscreen saver now (exits on input)\n\
-         \u{20}   scrnsav watch [secs]  Watch for idle and launch the saver (default 300s)\n"
+         \u{20}   scrnsav show  [--shader PATH]         Run the saver now (exits on input)\n\
+         \u{20}   scrnsav watch [secs] [--shader PATH]  Watch for idle, then launch the saver\n\
+         \n\
+         Without --shader, a bundled plasma effect is used. Default idle is 300s.\n"
     );
 }

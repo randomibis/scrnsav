@@ -21,6 +21,9 @@ use winit::window::{Fullscreen, Window, WindowId};
 /// mouse jiggle that triggered the saver doesn't dismiss it instantly.
 const GRACE: Duration = Duration::from_millis(700);
 
+/// Bundled effect, used when no `--shader` is given.
+const DEFAULT_SHADER: &str = include_str!("../shaders/plasma.wgsl");
+
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Uniforms {
@@ -217,7 +220,10 @@ fn build_surf(gpu: &Gpu, window: Arc<Window>, surface: wgpu::Surface<'static>, s
 }
 
 /// Create the GPU context and one window+surface per active monitor.
-fn init(event_loop: &ActiveEventLoop) -> anyhow::Result<(Gpu, HashMap<WindowId, Surf>)> {
+fn init(
+    event_loop: &ActiveEventLoop,
+    shader_src: &str,
+) -> anyhow::Result<(Gpu, HashMap<WindowId, Surf>)> {
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
         backends: wgpu::Backends::VULKAN | wgpu::Backends::GL,
         ..wgpu::InstanceDescriptor::new_without_display_handle()
@@ -265,8 +271,8 @@ fn init(event_loop: &ActiveEventLoop) -> anyhow::Result<(Gpu, HashMap<WindowId, 
     .context("requesting GPU device")?;
 
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("plasma"),
-        source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/plasma.wgsl").into()),
+        label: Some("saver shader"),
+        source: wgpu::ShaderSource::Wgsl(shader_src.into()),
     });
 
     let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -314,6 +320,7 @@ struct App {
     surfaces: HashMap<WindowId, Surf>,
     start: Option<Instant>,
     launched_at: Option<Instant>,
+    shader_src: String,
 }
 
 impl App {
@@ -329,7 +336,7 @@ impl ApplicationHandler for App {
         if self.gpu.is_some() {
             return;
         }
-        match init(event_loop) {
+        match init(event_loop, &self.shader_src) {
             Ok((gpu, surfaces)) => {
                 self.gpu = Some(gpu);
                 self.surfaces = surfaces;
@@ -399,10 +406,21 @@ impl ApplicationHandler for App {
     }
 }
 
-pub fn run() -> anyhow::Result<()> {
+/// Run the saver. `shader` is a path to a WGSL file; when `None`, the bundled
+/// plasma effect is used.
+pub fn run(shader: Option<String>) -> anyhow::Result<()> {
+    let shader_src = match shader {
+        Some(path) => std::fs::read_to_string(&path)
+            .with_context(|| format!("reading shader file '{path}'"))?,
+        None => DEFAULT_SHADER.to_string(),
+    };
+
     let event_loop = EventLoop::new().context("creating event loop")?;
     event_loop.set_control_flow(ControlFlow::Poll);
-    let mut app = App::default();
+    let mut app = App {
+        shader_src,
+        ..Default::default()
+    };
     event_loop.run_app(&mut app).context("running event loop")?;
     Ok(())
 }
