@@ -62,6 +62,11 @@ test:
 fmt:
 	$(CARGO) fmt
 
+## fmt-check: fail if the source isn't formatted (for CI)
+.PHONY: fmt-check
+fmt-check:
+	$(CARGO) fmt --check
+
 ## clippy: lint
 .PHONY: clippy
 clippy:

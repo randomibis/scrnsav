@@ -29,9 +29,9 @@ fn all_shaders_parse_and_validate() {
             naga::valid::ValidationFlags::all(),
             naga::valid::Capabilities::all(),
         );
-        validator.validate(&module).unwrap_or_else(|e| {
-            panic!("WGSL validation error in {}:\n{e:?}", path.display())
-        });
+        validator
+            .validate(&module)
+            .unwrap_or_else(|e| panic!("WGSL validation error in {}:\n{e:?}", path.display()));
 
         checked += 1;
     }
