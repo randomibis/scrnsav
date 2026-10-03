@@ -7,7 +7,7 @@ use anyhow::Context;
 struct Opts {
     /// Idle timeout in seconds (first bare number), used by `watch`.
     secs: Option<u64>,
-    /// Path to a WGSL shader file (`--shader PATH`).
+    /// Bundled effect name or WGSL file path (`--shader NAME|PATH`).
     shader: Option<String>,
     /// Internal: set by the idle daemon on the `show` it spawns, so the saver
     /// dismisses on any input rather than Escape-only.
@@ -20,6 +20,8 @@ struct Opts {
     time: Option<f32>,
     /// Phase-offset seed (`--seed F`); random each run when omitted. Used by `shot`.
     seed: Option<f32>,
+    /// Print the bundled effect names and exit (`--list`).
+    list: bool,
 }
 
 fn parse_opts(args: &[String]) -> Opts {
@@ -30,6 +32,7 @@ fn parse_opts(args: &[String]) -> Opts {
     let mut size = None;
     let mut time = None;
     let mut seed = None;
+    let mut list = false;
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
@@ -57,6 +60,10 @@ fn parse_opts(args: &[String]) -> Opts {
                 idle = true;
                 i += 1;
             }
+            "--list" => {
+                list = true;
+                i += 1;
+            }
             other => {
                 if let Ok(n) = other.parse::<u64>() {
                     secs = Some(n);
@@ -73,6 +80,15 @@ fn parse_opts(args: &[String]) -> Opts {
         size,
         time,
         seed,
+        list,
+    }
+}
+
+/// Print the names of the bundled effects (the first is the default).
+fn print_bundled() {
+    println!("Bundled effects (first is the default):");
+    for name in render::bundled_names() {
+        println!("  {name}");
     }
 }
 
@@ -104,6 +120,10 @@ fn main() -> anyhow::Result<()> {
     match mode {
         "show" => {
             let opts = parse_opts(rest);
+            if opts.list {
+                print_bundled();
+                return Ok(());
+            }
             // Explicit run: Escape-only. Idle daemon passes --idle for any-input.
             let dismiss = if opts.idle {
                 render::DismissMode::AnyInput
@@ -125,6 +145,7 @@ fn main() -> anyhow::Result<()> {
             let time = opts.time.unwrap_or(10.0);
             render::shot(opts.shader, &out, w, h, time, opts.seed)?;
         }
+        "list" | "--list" => print_bundled(),
         "-h" | "--help" | "help" => print_help(),
         other => {
             eprintln!("scrnsav: unknown command '{other}'\n");
@@ -139,12 +160,14 @@ fn print_help() {
         "scrnsav — a Wayland/GNOME screensaver\n\
          \n\
          USAGE:\n\
-         \u{20}   scrnsav show  [--shader PATH]         Run the saver now (Esc to exit)\n\
-         \u{20}   scrnsav watch [secs] [--shader PATH]  Watch for idle, then launch the saver\n\
-         \u{20}   scrnsav shot  [--shader PATH] [--out PATH] [--size WxH] [--time SECS] [--seed F]\n\
-         \u{20}                                         Render one frame to a PNG (headless)\n\
+         \u{20}   scrnsav show  [--shader NAME|PATH]         Run the saver now (Esc to exit)\n\
+         \u{20}   scrnsav watch [secs] [--shader NAME|PATH]  Watch for idle, then launch the saver\n\
+         \u{20}   scrnsav shot  [--shader NAME|PATH] [--out PATH] [--size WxH] [--time SECS] [--seed F]\n\
+         \u{20}                                             Render one frame to a PNG (headless)\n\
+         \u{20}   scrnsav list                              List the bundled effect names\n\
          \n\
-         Without --shader, a bundled default effect is used. Default idle is 300s.\n\
+         --shader takes a bundled name (see `list`) or a path to a .wgsl file.\n\
+         Without it, the default bundled effect is used. Default idle is 300s.\n\
          shot defaults: --out shot.png --size 1920x1080 --time 10, random --seed.\n"
     );
 }

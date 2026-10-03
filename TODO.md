@@ -5,9 +5,6 @@
   so this needs a scheme: e.g. a small fixed array of generic `param[]` floats in
   the Uniforms block, plus a per-shader manifest naming them — or drive it from a
   config file. Connects to the config-file and multiple-shaders items.
-- **Bundle multiple shaders, pick by name.** `include_str!` a set and select with
-  `--shader lines` (a name) rather than only a file path; keep file paths working
-  too. Add `--list` to print bundled names.
 - **Shader directory discovery.** Also load user shaders from
   `$XDG_DATA_HOME/scrnsav/shaders/` so people can drop files in without full paths.
 - **Hot-reload while authoring.** Watch the shader file and rebuild the pipeline

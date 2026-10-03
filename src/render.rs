@@ -34,8 +34,33 @@ pub enum DismissMode {
 /// mouse jiggle that triggered the saver doesn't dismiss it instantly.
 const GRACE: Duration = Duration::from_millis(700);
 
-/// Bundled effect, used when no `--shader` is given.
-const DEFAULT_SHADER: &str = include_str!("../shaders/lines.wgsl");
+/// Effects compiled into the binary, selectable by bare name via `--shader`.
+/// The first entry is the default used when no `--shader` is given.
+const BUNDLED: &[(&str, &str)] = &[
+    ("lines", include_str!("../shaders/lines.wgsl")),
+    ("balls", include_str!("../shaders/balls.wgsl")),
+    ("plasma", include_str!("../shaders/plasma.wgsl")),
+];
+
+/// Names of the bundled effects, in order (first is the default).
+pub fn bundled_names() -> impl Iterator<Item = &'static str> {
+    BUNDLED.iter().map(|(name, _)| *name)
+}
+
+/// Resolve the `--shader` argument to WGSL source. `None` → the default
+/// (first bundled) effect; a value that exactly matches a bundled name → that
+/// bundled source; anything else → read as a file path on disk.
+fn resolve_shader(shader: Option<&str>) -> anyhow::Result<String> {
+    match shader {
+        None => Ok(BUNDLED[0].1.to_string()),
+        Some(name) => match BUNDLED.iter().find(|(n, _)| *n == name) {
+            Some((_, src)) => Ok((*src).to_string()),
+            None => std::fs::read_to_string(name).with_context(|| {
+                format!("reading shader '{name}' (not a bundled name or readable file)")
+            }),
+        },
+    }
+}
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -463,14 +488,11 @@ impl ApplicationHandler for App {
     }
 }
 
-/// Run the saver. `shader` is a path to a WGSL file; when `None`, the bundled
-/// default effect is used. `dismiss` selects how it exits.
+/// Run the saver. `shader` is a bundled name or a WGSL file path (see
+/// [`resolve_shader`]); when `None`, the default bundled effect is used.
+/// `dismiss` selects how it exits.
 pub fn run(shader: Option<String>, dismiss: DismissMode) -> anyhow::Result<()> {
-    let shader_src = match shader {
-        Some(path) => std::fs::read_to_string(&path)
-            .with_context(|| format!("reading shader file '{path}'"))?,
-        None => DEFAULT_SHADER.to_string(),
-    };
+    let shader_src = resolve_shader(shader.as_deref())?;
 
     let event_loop = EventLoop::new().context("creating event loop")?;
     event_loop.set_control_flow(ControlFlow::Poll);
@@ -488,10 +510,11 @@ pub fn run(shader: Option<String>, dismiss: DismissMode) -> anyhow::Result<()> {
 
 /// Render a single frame of `shader` to a PNG at `out`, headlessly — no window
 /// or surface, so it works without a display (e.g. in CI for README images).
-/// `shader` is a WGSL path, or the bundled default when `None`. `time` picks
-/// the moment in the effect's animation to capture (effects are deterministic
-/// in `time`). `seed` is the per-shader phase offset; `None` picks a random one
-/// each run (logged, so a favourite can be pinned with `--seed`).
+/// `shader` is a bundled name or a WGSL file path (see [`resolve_shader`]), or
+/// the bundled default when `None`. `time` picks the moment in the effect's
+/// animation to capture (effects are deterministic in `time`). `seed` is the
+/// per-shader phase offset; `None` picks a random one each run (logged, so a
+/// favourite can be pinned with `--seed`).
 pub fn shot(
     shader: Option<String>,
     out: &str,
@@ -501,11 +524,7 @@ pub fn shot(
     seed: Option<f32>,
 ) -> anyhow::Result<()> {
     let seed = seed.unwrap_or_else(random_seed);
-    let shader_src = match shader {
-        Some(path) => std::fs::read_to_string(&path)
-            .with_context(|| format!("reading shader file '{path}'"))?,
-        None => DEFAULT_SHADER.to_string(),
-    };
+    let shader_src = resolve_shader(shader.as_deref())?;
 
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
         backends: wgpu::Backends::VULKAN | wgpu::Backends::GL,
@@ -690,5 +709,18 @@ mod tests {
     fn uniforms_match_wgsl_layout() {
         // Must stay 16 bytes to match `struct Uniforms` in the WGSL shaders.
         assert_eq!(std::mem::size_of::<Uniforms>(), 16);
+    }
+
+    #[test]
+    fn resolve_shader_picks_bundled() {
+        // None falls back to the default (first bundled = lines), and a bundled
+        // name resolves to that effect's source.
+        let default = super::resolve_shader(None).unwrap();
+        assert_eq!(default, super::resolve_shader(Some("lines")).unwrap());
+        assert!(
+            super::resolve_shader(Some("plasma"))
+                .unwrap()
+                .contains("fs_main")
+        );
     }
 }

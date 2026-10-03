@@ -43,13 +43,17 @@ cargo build --release
 # Preview an effect right now (Esc to exit):
 ./target/release/scrnsav show
 
-# Use a different shader instead of the bundled default:
-./target/release/scrnsav show --shader shaders/plasma.wgsl
+# List the bundled effects, then pick one by name:
+./target/release/scrnsav list
+./target/release/scrnsav show --shader plasma
+
+# --shader also takes a path to your own .wgsl file:
+./target/release/scrnsav show --shader ./my-effect.wgsl
 
 # Run the idle daemon (fires after 300s; pass seconds to override).
 # --shader is forwarded to each saver it launches:
 ./target/release/scrnsav watch 300
-./target/release/scrnsav watch 60 --shader shaders/plasma.wgsl
+./target/release/scrnsav watch 60 --shader plasma
 RUST_LOG=info ./target/release/scrnsav watch 60   # with logging
 ```
 
@@ -80,13 +84,15 @@ systemctl --user enable --now scrnsav.service
 
 ## Writing new effects
 
-Effects live in `shaders/` as WGSL. Two are included:
+Effects live in `shaders/` as WGSL and are compiled into the binary, so you can
+select them by bare name with `--shader NAME` (see `scrnsav list`). Three are
+bundled:
 
-- `lines.wgsl` — the bundled default: a retro vector line strung between two
-  bouncing points, trailing a colour-cycling ribbon.
-- `plasma.wgsl` — classic plasma; run it with `--shader shaders/plasma.wgsl`.
-- `balls.wgsl` — retro bouncing balls with a phosphor afterimage trail; run it
-  with `--shader shaders/balls.wgsl`.
+- `lines` — the default: a retro vector line strung between two bouncing points,
+  trailing a colour-cycling ribbon.
+- `plasma` — classic plasma; run it with `--shader plasma`.
+- `balls` — retro bouncing balls with a phosphor afterimage trail; run it with
+  `--shader balls`.
 
 The fragment shader gets a uniform:
 
@@ -99,9 +105,11 @@ launch; `u.seed` is a per-monitor phase offset (so multi-monitor setups show a
 different variation on each screen — fold it into your math to make use of it).
 
 To use your own effect, write a `.wgsl` file with `vs_main`/`fs_main` entry
-points (copy `plasma.wgsl` as a starting point) and pass it with `--shader PATH`
-— no rebuild needed. The default is compiled in, so `scrnsav show` always works
-with no arguments.
+points (copy `plasma.wgsl` as a starting point) and pass its path with
+`--shader PATH` — no rebuild needed. A bundled name always wins over a file of
+the same bare name, so use a path (e.g. `./plasma.wgsl`) to run a local copy.
+The bundled effects are compiled in, so `scrnsav show` always works with no
+arguments.
 
 Run `make test` (or `cargo test`) to validate every shader in `shaders/` — it
 parses and validates them with naga (the same compiler wgpu uses), catching
