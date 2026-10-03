@@ -14,7 +14,7 @@ GNOME/Mutter (Rust).
 ## Build / run / test
 - `make build` (release), `make check` (fast type-check), `make test`
   (`cargo test` — **also validates every shader** in `shaders/` via naga).
-- `make run` / `make run SHADER=shaders/ball.wgsl` to preview; `make run-all`
+- `make run` / `make run SHADER=shaders/balls.wgsl` to preview; `make run-all`
   cycles all shaders; `make watch IDLE=10` exercises the idle path.
 - Run `make test` and `cargo fmt` before committing.
 - GUI behaviour (looks right? dismiss works?) **can't be verified in CI** — ask
