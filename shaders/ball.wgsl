@@ -44,45 +44,45 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
     // Aspect-corrected pixel coordinate: y in [0,1], x in [0,aspect].
     let p = frag.xy / res.y;
 
-    let r = 0.045;              // ball radius
+    let r = 0.2;                // ball radius
     let seed = u.seed;
 
     var col = vec3<f32>(0.0);
-    let steps = 28;
-    let balls = 2;
+    let steps = 25;
+    let balls = 3;
+
+    // Decoupled tail/speed controls:
+    //   speed        — ball pace (lower = slower); does NOT change tail length.
+    //   tail_seconds — how far back the smear reaches, in ball-time units.
+    // The trail is sampled over a fixed window of ball-time, so its spatial
+    // length depends only on tail_seconds, not on speed.
+    let speed = 0.5;
+    let tail_seconds = 2.0;
+    let dt = tail_seconds / f32(steps);
     for (var b = 0; b < balls; b = b + 1) {
         // Distinct phase, speed, and colour per ball (golden-angle offset).
         let bseed = seed + f32(b) * 2.39963;
-        let tint = 0.55 + 0.45 * cos(bseed + vec3<f32>(0.0, 2.1, 4.2));
+        // Hue slowly drifts over time so the palette keeps evolving. `hue_rate`
+        // is radians/sec; bseed keeps the balls offset from each other.
+        let hue_rate = 0.05;
+        let hue = bseed + u.time * hue_rate;
+        let tint = 0.55 + 0.45 * cos(hue + vec3<f32>(0.0, 2.1, 4.2));
 
         var glow = 0.0;
         var core = 0.0;
         for (var i = 0; i < steps; i = i + 1) {
             let age = f32(i);
-            let t = u.time - age * 0.05;        // step back in time
+            let t = u.time * speed - age * dt;  // step back over a fixed ball-time window
             let bp = ball_pos(t, aspect, r, bseed);
             let d = distance(p, bp);
-            let decay = pow(0.80, age);          // older = dimmer
-            glow += exp(-d * d / (r * r) * 2.2) * decay;
+            let decay = pow(0.75, age);          // older = dimmer
+            glow += exp(-d * d / (r * r) * 4.2) * decay;
             if (i == 0) {
-                core = smoothstep(r, r * 0.55, d); // crisp head
+                core = smoothstep(r, 0, d);  // crisp head
             }
         }
         col += tint * (glow * 0.55) + vec3<f32>(core);
     }
-
-    // Dark CRT background with a faint vertical gradient.
-    col += vec3<f32>(0.01, 0.02, 0.035) * (1.0 - p.y * 0.3);
-
-    // Filmic-ish bloom roll-off so the trail blooms instead of clipping.
-    col = vec3<f32>(1.0) - exp(-col * 1.6);
-
-    // Scanlines.
-    col *= 0.88 + 0.12 * sin(frag.y * 2.0);
-
-    // Vignette.
-    let uv = frag.xy / res - 0.5;
-    col *= 1.0 - dot(uv, uv) * 0.6;
 
     return vec4<f32>(col, 1.0);
 }

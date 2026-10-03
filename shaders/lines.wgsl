@@ -74,18 +74,5 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
         col += color * glow * decay;
     }
 
-    // Faint CRT background tint.
-    col += vec3<f32>(0.01, 0.015, 0.03);
-
-    // Filmic bloom roll-off so bright overlaps glow instead of clipping.
-    col = vec3<f32>(1.0) - exp(-col * 1.5);
-
-    // Scanlines.
-    col *= 0.9 + 0.1 * sin(frag.y * 2.0);
-
-    // Vignette.
-    let uv = frag.xy / res - 0.5;
-    col *= 1.0 - dot(uv, uv) * 0.5;
-
     return vec4<f32>(col, 1.0);
 }
