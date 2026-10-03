@@ -54,6 +54,20 @@ shots: build
 	    --out docs/shots/$$(basename $$s .wgsl).png $(SHOT_ARGS); \
 	done
 
+## ci-shots: render every shader to a throwaway dir (GPU smoke test, no tracked files touched)
+# Needs a working GPU, so `make ci` does too. Fine locally; a GitHub Actions
+# runner has none — install Mesa's software renderer (lavapipe/llvmpipe) there
+# first, or drop ci-shots from the `ci` deps and run it as its own job.
+.PHONY: ci-shots
+ci-shots: build
+	@tmp=$$(mktemp -d); \
+	trap 'rm -rf "$$tmp"' EXIT; \
+	for s in shaders/*.wgsl; do \
+	  $(RELEASE) shot --shader $$s \
+	    --out "$$tmp/$$(basename $$s .wgsl).png" || exit 1; \
+	done; \
+	echo "ci-shots: rendered $$(ls "$$tmp" | wc -l) shader(s) OK (discarded)"
+
 ## watch: build release, then run the idle daemon (IDLE=<secs>, with logging)
 .PHONY: watch
 watch: build
@@ -82,7 +96,7 @@ fmt-check:
 ## ci: Run all checks that might block a merge
 .PHONY: ci
 ci: CLIPPY_FLAGS = -- -D warnings
-ci: fmt-check build test clippy
+ci: fmt-check build test clippy ci-shots
 
 ## clippy: lint (CI promotes warnings to errors via CLIPPY_FLAGS)
 .PHONY: clippy
