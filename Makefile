@@ -14,6 +14,9 @@ IDLE     ?= 300
 SHADER   ?=
 SHADER_ARG = $(if $(SHADER),--shader $(SHADER),)
 
+# Extra flags for the `shots` target, e.g. make shots SHOT_ARGS="--size 1280x720"
+SHOT_ARGS ?=
+
 # Where the systemd user unit gets installed.
 UNIT_DIR  = $(HOME)/.config/systemd/user
 UNIT      = scrnsav.service
@@ -40,6 +43,15 @@ run: build
 run-all: build
 	for s in shaders/*.wgsl; do \
 	  $(RELEASE) show --shader $$s; \
+	done
+
+## shots: render a PNG of each shader to docs/shots/ (headless, no display)
+.PHONY: shots
+shots: build
+	mkdir -p docs/shots
+	for s in shaders/*.wgsl; do \
+	  RUST_LOG=info $(RELEASE) shot --shader $$s \
+	    --out docs/shots/$$(basename $$s .wgsl).png $(SHOT_ARGS); \
 	done
 
 ## watch: build release, then run the idle daemon (IDLE=<secs>, with logging)

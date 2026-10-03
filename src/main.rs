@@ -1,6 +1,8 @@
 mod idle;
 mod render;
 
+use anyhow::Context;
+
 /// Parsed options shared by the subcommands.
 struct Opts {
     /// Idle timeout in seconds (first bare number), used by `watch`.
@@ -10,17 +12,45 @@ struct Opts {
     /// Internal: set by the idle daemon on the `show` it spawns, so the saver
     /// dismisses on any input rather than Escape-only.
     idle: bool,
+    /// Output PNG path (`--out PATH`), used by `shot`.
+    out: Option<String>,
+    /// Shot size as `WxH` (`--size 1920x1080`), used by `shot`.
+    size: Option<String>,
+    /// Animation time in seconds to capture (`--time SECS`), used by `shot`.
+    time: Option<f32>,
+    /// Phase-offset seed (`--seed F`); random each run when omitted. Used by `shot`.
+    seed: Option<f32>,
 }
 
 fn parse_opts(args: &[String]) -> Opts {
     let mut secs = None;
     let mut shader = None;
     let mut idle = false;
+    let mut out = None;
+    let mut size = None;
+    let mut time = None;
+    let mut seed = None;
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
             "--shader" | "-s" => {
                 shader = args.get(i + 1).cloned();
+                i += 2;
+            }
+            "--out" | "-o" => {
+                out = args.get(i + 1).cloned();
+                i += 2;
+            }
+            "--size" => {
+                size = args.get(i + 1).cloned();
+                i += 2;
+            }
+            "--time" => {
+                time = args.get(i + 1).and_then(|s| s.parse().ok());
+                i += 2;
+            }
+            "--seed" => {
+                seed = args.get(i + 1).and_then(|s| s.parse().ok());
                 i += 2;
             }
             "--idle" => {
@@ -35,7 +65,33 @@ fn parse_opts(args: &[String]) -> Opts {
             }
         }
     }
-    Opts { secs, shader, idle }
+    Opts {
+        secs,
+        shader,
+        idle,
+        out,
+        size,
+        time,
+        seed,
+    }
+}
+
+/// Parse a `WxH` size string, defaulting to 1920x1080.
+fn parse_size(size: Option<&str>) -> anyhow::Result<(u32, u32)> {
+    let Some(s) = size else {
+        return Ok((1920, 1080));
+    };
+    let (w, h) = s
+        .split_once(['x', 'X'])
+        .with_context(|| format!("invalid --size '{s}', expected WxH"))?;
+    Ok((
+        w.trim()
+            .parse()
+            .with_context(|| format!("invalid width in '{s}'"))?,
+        h.trim()
+            .parse()
+            .with_context(|| format!("invalid height in '{s}'"))?,
+    ))
 }
 
 fn main() -> anyhow::Result<()> {
@@ -61,6 +117,14 @@ fn main() -> anyhow::Result<()> {
             let secs = opts.secs.unwrap_or(300);
             pollster::block_on(idle::run(secs * 1000, opts.shader))?;
         }
+        "shot" => {
+            let opts = parse_opts(rest);
+            let out = opts.out.unwrap_or_else(|| "shot.png".to_string());
+            let (w, h) = parse_size(opts.size.as_deref())?;
+            // A moment into the animation, so the effect isn't caught at t=0.
+            let time = opts.time.unwrap_or(10.0);
+            render::shot(opts.shader, &out, w, h, time, opts.seed)?;
+        }
         "-h" | "--help" | "help" => print_help(),
         other => {
             eprintln!("scrnsav: unknown command '{other}'\n");
@@ -85,6 +149,12 @@ mod tests {
         assert_eq!(opts.secs, Some(60));
         assert_eq!(opts.shader.as_deref(), Some("x.wgsl"));
     }
+
+    #[test]
+    fn parses_shot_size() {
+        assert_eq!(parse_size(None).unwrap(), (1920, 1080));
+        assert_eq!(parse_size(Some("800x600")).unwrap(), (800, 600));
+    }
 }
 
 fn print_help() {
@@ -94,7 +164,10 @@ fn print_help() {
          USAGE:\n\
          \u{20}   scrnsav show  [--shader PATH]         Run the saver now (Esc to exit)\n\
          \u{20}   scrnsav watch [secs] [--shader PATH]  Watch for idle, then launch the saver\n\
+         \u{20}   scrnsav shot  [--shader PATH] [--out PATH] [--size WxH] [--time SECS] [--seed F]\n\
+         \u{20}                                         Render one frame to a PNG (headless)\n\
          \n\
-         Without --shader, a bundled default effect is used. Default idle is 300s.\n"
+         Without --shader, a bundled default effect is used. Default idle is 300s.\n\
+         shot defaults: --out shot.png --size 1920x1080 --time 10, random --seed.\n"
     );
 }

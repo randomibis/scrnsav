@@ -152,6 +152,82 @@ fn monitor_seed(monitor: &MonitorHandle, index: usize) -> f32 {
     (hasher.finish() % 100_000) as f32 / 100_000.0 * std::f32::consts::TAU * 8.0
 }
 
+/// Bind group layout for the single `Uniforms` buffer, shared by every
+/// pipeline (windowed and headless).
+fn uniforms_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("uniforms"),
+        entries: &[wgpu::BindGroupLayoutEntry {
+            binding: 0,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        }],
+    })
+}
+
+/// Pipeline layout wrapping the uniforms bind group layout.
+fn uniforms_pipeline_layout(
+    device: &wgpu::Device,
+    bind_group_layout: &wgpu::BindGroupLayout,
+) -> wgpu::PipelineLayout {
+    device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: Some("pipeline layout"),
+        bind_group_layouts: &[Some(bind_group_layout)],
+        immediate_size: 0,
+    })
+}
+
+/// Build the fullscreen-triangle render pipeline for a given target `format`.
+/// Shared by the windowed surfaces and the headless screenshot renderer.
+fn make_pipeline(
+    device: &wgpu::Device,
+    layout: &wgpu::PipelineLayout,
+    shader: &wgpu::ShaderModule,
+    format: wgpu::TextureFormat,
+) -> wgpu::RenderPipeline {
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("saver pipeline"),
+        layout: Some(layout),
+        vertex: wgpu::VertexState {
+            module: shader,
+            entry_point: Some("vs_main"),
+            buffers: &[],
+            compilation_options: Default::default(),
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: shader,
+            entry_point: Some("fs_main"),
+            targets: &[Some(wgpu::ColorTargetState {
+                format,
+                blend: Some(wgpu::BlendState::REPLACE),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+            compilation_options: Default::default(),
+        }),
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: None,
+        multisample: wgpu::MultisampleState::default(),
+        multiview_mask: None,
+        cache: None,
+    })
+}
+
+/// A pseudo-random phase offset for one-off shots, in the same range as
+/// [`monitor_seed`]. Uses `RandomState`'s per-call random keys, so each run
+/// (and each rerun) picks a different variation of the effect.
+fn random_seed() -> f32 {
+    use std::hash::{BuildHasher, Hasher};
+    let bits = std::collections::hash_map::RandomState::new()
+        .build_hasher()
+        .finish();
+    (bits % 100_000) as f32 / 100_000.0 * std::f32::consts::TAU * 8.0
+}
+
 /// Build the per-monitor surface, choosing its own preferred format so each
 /// output is configured correctly even if they differ.
 fn build_surf(gpu: &Gpu, window: Arc<Window>, surface: wgpu::Surface<'static>, seed: f32) -> Surf {
@@ -193,33 +269,7 @@ fn build_surf(gpu: &Gpu, window: Arc<Window>, surface: wgpu::Surface<'static>, s
         }],
     });
 
-    let pipeline = gpu
-        .device
-        .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("saver pipeline"),
-            layout: Some(&gpu.pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &gpu.shader,
-                entry_point: Some("vs_main"),
-                buffers: &[],
-                compilation_options: Default::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &gpu.shader,
-                entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: Default::default(),
-            }),
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview_mask: None,
-            cache: None,
-        });
+    let pipeline = make_pipeline(&gpu.device, &gpu.pipeline_layout, &gpu.shader, format);
 
     Surf {
         window,
@@ -294,25 +344,8 @@ fn init(
         source: wgpu::ShaderSource::Wgsl(shader_src.into()),
     });
 
-    let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("uniforms"),
-        entries: &[wgpu::BindGroupLayoutEntry {
-            binding: 0,
-            visibility: wgpu::ShaderStages::FRAGMENT,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Uniform,
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        }],
-    });
-
-    let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: Some("pipeline layout"),
-        bind_group_layouts: &[Some(&bind_group_layout)],
-        immediate_size: 0,
-    });
+    let bind_group_layout = uniforms_bind_group_layout(&device);
+    let pipeline_layout = uniforms_pipeline_layout(&device, &bind_group_layout);
 
     let gpu = Gpu {
         instance,
@@ -376,19 +409,12 @@ impl ApplicationHandler for App {
         }
     }
 
-    fn window_event(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        id: WindowId,
-        event: WindowEvent,
-    ) {
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
         let past_grace = self.past_grace();
         let dismiss = self.dismiss;
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
-            WindowEvent::KeyboardInput { event: ke, .. }
-                if ke.state == ElementState::Pressed =>
-            {
+            WindowEvent::KeyboardInput { event: ke, .. } if ke.state == ElementState::Pressed => {
                 let is_escape = ke.physical_key == PhysicalKey::Code(KeyCode::Escape);
                 match dismiss {
                     // Escape always exits, grace or not.
@@ -420,12 +446,7 @@ impl ApplicationHandler for App {
         }
     }
 
-    fn device_event(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        _id: DeviceId,
-        event: DeviceEvent,
-    ) {
+    fn device_event(&mut self, event_loop: &ActiveEventLoop, _id: DeviceId, event: DeviceEvent) {
         if self.dismiss == DismissMode::AnyInput {
             if let DeviceEvent::MouseMotion { delta } = event {
                 if self.past_grace() && delta.0.abs() + delta.1.abs() > 2.0 {
@@ -473,5 +494,201 @@ pub fn run(shader: Option<String>, dismiss: DismissMode) -> anyhow::Result<()> {
     if let Some(e) = app.init_error {
         return Err(e);
     }
+    Ok(())
+}
+
+/// Render a single frame of `shader` to a PNG at `out`, headlessly — no window
+/// or surface, so it works without a display (e.g. in CI for README images).
+/// `shader` is a WGSL path, or the bundled default when `None`. `time` picks
+/// the moment in the effect's animation to capture (effects are deterministic
+/// in `time`). `seed` is the per-shader phase offset; `None` picks a random one
+/// each run (logged, so a favourite can be pinned with `--seed`).
+pub fn shot(
+    shader: Option<String>,
+    out: &str,
+    width: u32,
+    height: u32,
+    time: f32,
+    seed: Option<f32>,
+) -> anyhow::Result<()> {
+    let seed = seed.unwrap_or_else(random_seed);
+    let shader_src = match shader {
+        Some(path) => std::fs::read_to_string(&path)
+            .with_context(|| format!("reading shader file '{path}'"))?,
+        None => DEFAULT_SHADER.to_string(),
+    };
+
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        backends: wgpu::Backends::VULKAN | wgpu::Backends::GL,
+        ..wgpu::InstanceDescriptor::new_without_display_handle()
+    });
+
+    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+        power_preference: wgpu::PowerPreference::HighPerformance,
+        // Headless: no surface to be compatible with.
+        compatible_surface: None,
+        force_fallback_adapter: false,
+        apply_limit_buckets: false,
+    }))
+    .context("no suitable GPU adapter")?;
+
+    let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+        label: Some("scrnsav headless device"),
+        required_features: wgpu::Features::empty(),
+        required_limits: adapter.limits(),
+        experimental_features: wgpu::ExperimentalFeatures::default(),
+        memory_hints: wgpu::MemoryHints::Performance,
+        trace: wgpu::Trace::Off,
+    }))
+    .context("requesting GPU device")?;
+
+    // sRGB target so the PNG matches the on-screen (sRGB surface) look; PNG is
+    // sRGB-encoded, so the bytes copied back need no further conversion.
+    let format = wgpu::TextureFormat::Rgba8UnormSrgb;
+
+    // Catch shader-compile / pipeline validation errors as a clean message,
+    // mirroring the windowed path instead of panicking.
+    let error_scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
+
+    let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("saver shader"),
+        source: wgpu::ShaderSource::Wgsl(shader_src.into()),
+    });
+    let bind_group_layout = uniforms_bind_group_layout(&device);
+    let pipeline_layout = uniforms_pipeline_layout(&device, &bind_group_layout);
+    let pipeline = make_pipeline(&device, &pipeline_layout, &module, format);
+
+    if let Some(err) = pollster::block_on(error_scope.pop()) {
+        anyhow::bail!("shader failed to compile:\n{err}");
+    }
+
+    let uniforms = Uniforms {
+        time,
+        seed,
+        resolution: [width as f32, height as f32],
+    };
+    let uniform_buf = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("uniform buffer"),
+        size: std::mem::size_of::<Uniforms>() as u64,
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    });
+    queue.write_buffer(&uniform_buf, 0, bytemuck::bytes_of(&uniforms));
+
+    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("uniforms"),
+        layout: &bind_group_layout,
+        entries: &[wgpu::BindGroupEntry {
+            binding: 0,
+            resource: uniform_buf.as_entire_binding(),
+        }],
+    });
+
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("shot target"),
+        size: wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        view_formats: &[],
+    });
+    let view = texture.create_view(&Default::default());
+
+    // copy_texture_to_buffer requires each row padded to a 256-byte multiple.
+    let unpadded_bytes_per_row = width * 4;
+    let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+    let padded_bytes_per_row = unpadded_bytes_per_row.div_ceil(align) * align;
+    let readback = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("shot readback"),
+        size: (padded_bytes_per_row * height) as u64,
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+
+    let mut encoder =
+        device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+    {
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("shot pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &view,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+        pass.set_pipeline(&pipeline);
+        pass.set_bind_group(0, &bind_group, &[]);
+        pass.draw(0..3, 0..1);
+    }
+    encoder.copy_texture_to_buffer(
+        wgpu::TexelCopyTextureInfo {
+            texture: &texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        wgpu::TexelCopyBufferInfo {
+            buffer: &readback,
+            layout: wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(padded_bytes_per_row),
+                rows_per_image: Some(height),
+            },
+        },
+        wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+    );
+    queue.submit(Some(encoder.finish()));
+
+    // Map the readback buffer and block until the GPU work completes.
+    let slice = readback.slice(..);
+    let (tx, rx) = std::sync::mpsc::channel();
+    slice.map_async(wgpu::MapMode::Read, move |r| {
+        let _ = tx.send(r);
+    });
+    device
+        .poll(wgpu::PollType::wait_indefinitely())
+        .map_err(|e| anyhow::anyhow!("polling device: {e:?}"))?;
+    rx.recv()
+        .context("map_async channel closed")?
+        .context("mapping readback buffer")?;
+
+    // Strip the per-row padding into a tight RGBA buffer, forcing alpha opaque
+    // so a shader that leaves alpha < 1 still yields a solid screenshot.
+    let data = slice
+        .get_mapped_range()
+        .map_err(|e| anyhow::anyhow!("reading mapped buffer: {e:?}"))?;
+    let mut pixels = Vec::with_capacity((unpadded_bytes_per_row * height) as usize);
+    for row in 0..height {
+        let start = (row * padded_bytes_per_row) as usize;
+        let end = start + unpadded_bytes_per_row as usize;
+        pixels.extend_from_slice(&data[start..end]);
+    }
+    drop(data);
+    readback.unmap();
+    for px in pixels.chunks_exact_mut(4) {
+        px[3] = 255;
+    }
+
+    image::save_buffer(out, &pixels, width, height, image::ExtendedColorType::Rgba8)
+        .with_context(|| format!("writing PNG '{out}'"))?;
+    log::info!("wrote {out} ({width}x{height}, --seed {seed})");
     Ok(())
 }
