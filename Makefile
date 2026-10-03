@@ -79,10 +79,15 @@ fmt:
 fmt-check:
 	$(CARGO) fmt --check
 
-## clippy: lint
+## ci: Run all checks that might block a merge
+.PHONY: ci
+ci: CLIPPY_FLAGS = -- -D warnings
+ci: fmt-check build test clippy
+
+## clippy: lint (CI promotes warnings to errors via CLIPPY_FLAGS)
 .PHONY: clippy
 clippy:
-	$(CARGO) clippy --all-targets
+	$(CARGO) clippy --all-targets $(CLIPPY_FLAGS)
 
 ## install: build + install and enable the service (IDLE=<secs>, SHADER=<path>)
 .PHONY: install
