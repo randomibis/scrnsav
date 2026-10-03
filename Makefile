@@ -14,7 +14,9 @@ IDLE     ?= 300
 SHADER   ?=
 SHADER_ARG = $(if $(SHADER),--shader $(SHADER),)
 
-# Extra flags for the `shots` target, e.g. make shots SHOT_ARGS="--size 1280x720"
+# Size of the generated README screenshots (override: make shots SHOT_SIZE=1920x1080).
+SHOT_SIZE ?= 960x540
+# Extra flags for the shot targets, e.g. make shots SHOT_ARGS="--seed 2.0"
 SHOT_ARGS ?=
 
 # Where the systemd user unit gets installed.
@@ -50,7 +52,7 @@ run-all: build
 shots: build
 	mkdir -p docs/shots
 	for s in shaders/*.wgsl; do \
-	  RUST_LOG=info $(RELEASE) shot --shader $$s \
+	  RUST_LOG=info $(RELEASE) shot --shader $$s --size $(SHOT_SIZE) \
 	    --out docs/shots/$$(basename $$s .wgsl).png $(SHOT_ARGS); \
 	done
 
@@ -63,7 +65,7 @@ ci-shots: build
 	@tmp=$$(mktemp -d); \
 	trap 'rm -rf "$$tmp"' EXIT; \
 	for s in shaders/*.wgsl; do \
-	  $(RELEASE) shot --shader $$s \
+	  $(RELEASE) shot --shader $$s --size $(SHOT_SIZE) \
 	    --out "$$tmp/$$(basename $$s .wgsl).png" || exit 1; \
 	done; \
 	echo "ci-shots: rendered $$(ls "$$tmp" | wc -l) shader(s) OK (discarded)"
