@@ -35,6 +35,13 @@ debug:
 run: build
 	$(RELEASE) show $(SHADER_ARG)
 
+## run-all: Show each of the available shaders
+.PHONY: run-all
+run-all: build
+	for s in shaders/*.wgsl; do \
+	  $(RELEASE) show --shader $$s; \
+	done
+
 ## watch: build release, then run the idle daemon (IDLE=<secs>, with logging)
 .PHONY: watch
 watch: build
