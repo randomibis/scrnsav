@@ -93,7 +93,5 @@ fn spawn_show(shader: Option<&str>) -> anyhow::Result<Child> {
     if let Some(path) = shader {
         cmd.arg("--shader").arg(path);
     }
-    cmd.spawn()
-        .context("spawning saver process")
-        .map_err(Into::into)
+    cmd.spawn().context("spawning saver process")
 }

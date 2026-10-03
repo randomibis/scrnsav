@@ -134,6 +134,21 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+fn print_help() {
+    println!(
+        "scrnsav — a Wayland/GNOME screensaver\n\
+         \n\
+         USAGE:\n\
+         \u{20}   scrnsav show  [--shader PATH]         Run the saver now (Esc to exit)\n\
+         \u{20}   scrnsav watch [secs] [--shader PATH]  Watch for idle, then launch the saver\n\
+         \u{20}   scrnsav shot  [--shader PATH] [--out PATH] [--size WxH] [--time SECS] [--seed F]\n\
+         \u{20}                                         Render one frame to a PNG (headless)\n\
+         \n\
+         Without --shader, a bundled default effect is used. Default idle is 300s.\n\
+         shot defaults: --out shot.png --size 1920x1080 --time 10, random --seed.\n"
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -155,19 +170,4 @@ mod tests {
         assert_eq!(parse_size(None).unwrap(), (1920, 1080));
         assert_eq!(parse_size(Some("800x600")).unwrap(), (800, 600));
     }
-}
-
-fn print_help() {
-    println!(
-        "scrnsav — a Wayland/GNOME screensaver\n\
-         \n\
-         USAGE:\n\
-         \u{20}   scrnsav show  [--shader PATH]         Run the saver now (Esc to exit)\n\
-         \u{20}   scrnsav watch [secs] [--shader PATH]  Watch for idle, then launch the saver\n\
-         \u{20}   scrnsav shot  [--shader PATH] [--out PATH] [--size WxH] [--time SECS] [--seed F]\n\
-         \u{20}                                         Render one frame to a PNG (headless)\n\
-         \n\
-         Without --shader, a bundled default effect is used. Default idle is 300s.\n\
-         shot defaults: --out shot.png --size 1920x1080 --time 10, random --seed.\n"
-    );
 }

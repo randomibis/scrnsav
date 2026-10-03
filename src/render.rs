@@ -429,17 +429,17 @@ impl ApplicationHandler for App {
                 ..
             } if dismiss == DismissMode::AnyInput && past_grace => event_loop.exit(),
             WindowEvent::Resized(size) => {
-                if let Some(gpu) = self.gpu.as_ref() {
-                    if let Some(surf) = self.surfaces.get_mut(&id) {
-                        surf.resize(&gpu.device, size.width, size.height);
-                    }
+                if let Some(gpu) = self.gpu.as_ref()
+                    && let Some(surf) = self.surfaces.get_mut(&id)
+                {
+                    surf.resize(&gpu.device, size.width, size.height);
                 }
             }
             WindowEvent::RedrawRequested => {
-                if let (Some(gpu), Some(start)) = (self.gpu.as_ref(), self.start) {
-                    if let Some(surf) = self.surfaces.get_mut(&id) {
-                        surf.render(&gpu.device, &gpu.queue, start.elapsed().as_secs_f32());
-                    }
+                if let (Some(gpu), Some(start)) = (self.gpu.as_ref(), self.start)
+                    && let Some(surf) = self.surfaces.get_mut(&id)
+                {
+                    surf.render(&gpu.device, &gpu.queue, start.elapsed().as_secs_f32());
                 }
             }
             _ => {}
@@ -447,12 +447,12 @@ impl ApplicationHandler for App {
     }
 
     fn device_event(&mut self, event_loop: &ActiveEventLoop, _id: DeviceId, event: DeviceEvent) {
-        if self.dismiss == DismissMode::AnyInput {
-            if let DeviceEvent::MouseMotion { delta } = event {
-                if self.past_grace() && delta.0.abs() + delta.1.abs() > 2.0 {
-                    event_loop.exit();
-                }
-            }
+        if self.dismiss == DismissMode::AnyInput
+            && let DeviceEvent::MouseMotion { delta } = event
+            && self.past_grace()
+            && delta.0.abs() + delta.1.abs() > 2.0
+        {
+            event_loop.exit();
         }
     }
 
@@ -460,17 +460,6 @@ impl ApplicationHandler for App {
         for surf in self.surfaces.values() {
             surf.window.request_redraw();
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Uniforms;
-
-    #[test]
-    fn uniforms_match_wgsl_layout() {
-        // Must stay 16 bytes to match `struct Uniforms` in the WGSL shaders.
-        assert_eq!(std::mem::size_of::<Uniforms>(), 16);
     }
 }
 
@@ -683,7 +672,7 @@ pub fn shot(
     }
     drop(data);
     readback.unmap();
-    for px in pixels.chunks_exact_mut(4) {
+    for px in pixels.as_chunks_mut::<4>().0 {
         px[3] = 255;
     }
 
@@ -691,4 +680,15 @@ pub fn shot(
         .with_context(|| format!("writing PNG '{out}'"))?;
     log::info!("wrote {out} ({width}x{height}, --seed {seed})");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Uniforms;
+
+    #[test]
+    fn uniforms_match_wgsl_layout() {
+        // Must stay 16 bytes to match `struct Uniforms` in the WGSL shaders.
+        assert_eq!(std::mem::size_of::<Uniforms>(), 16);
+    }
 }
