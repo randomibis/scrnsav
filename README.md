@@ -115,19 +115,20 @@ Run `make test` (or `cargo test`) to validate every shader in `shaders/` — it
 parses and validates them with naga (the same compiler wgpu uses), catching
 errors without launching the GUI.
 
-## Screenshots
+## Shaders
 
-The three bundled effects — `lines` (the default), `balls`, and `plasma`:
+The three built in shaders are `lines` (the default), `balls`, and `plasma`:
 
 ### lines
 
-<img src="docs/shots/lines.png" width="480" height="270" alt="lines effect">
+<img src="docs/shots/lines1.png" width="290" height="163" hspace="10" alt="lines effect"><img src="docs/shots/lines2.png" width="290" height="163" hspace="20" alt="lines effect">
 
 ### balls
-<img src="docs/shots/balls.png" width="480" height="270" alt="balls effect">
+
+<img src="docs/shots/balls1.png" width="290" height="163" hspace="10" alt="balls effect"><img src="docs/shots/balls2.png" width="290" height="163" hspace="20" alt="balls effect">
 
 ### plasma
 
-<img src="docs/shots/plasma.png" width="480" height="270" alt="plasma effect">
+<img src="docs/shots/plasma1.png" width="290" height="163" hspace="10" alt="plasma effect"><img src="docs/shots/plasma2.png" width="290" height="163" hspace="20" alt="plasma effect">
 
 Regenerate these with `make shots` (renders each shader to `docs/shots/`).

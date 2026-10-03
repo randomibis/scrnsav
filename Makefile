@@ -52,8 +52,10 @@ run-all: build
 shots: build
 	mkdir -p docs/shots
 	for s in shaders/*.wgsl; do \
-	  RUST_LOG=info $(RELEASE) shot --shader $$s --size $(SHOT_SIZE) \
-	    --out docs/shots/$$(basename $$s .wgsl).png $(SHOT_ARGS); \
+	  for i in 1 2; do \
+	    $(RELEASE) shot --shader $$s --size $(SHOT_SIZE) \
+	      --out docs/shots/$$(basename $$s .wgsl)$$i.png $(SHOT_ARGS); \
+	  done; \
 	done
 
 ## ci-shots: render every shader to a throwaway dir (GPU smoke test, no tracked files touched)
