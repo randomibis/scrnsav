@@ -3,8 +3,9 @@
 //! One fullscreen window per active monitor, each drawing a WGSL fragment
 //! shader (Shadertoy-style) over a single full-screen triangle. All windows
 //! share one GPU device/queue; each has its own surface, pipeline, and
-//! uniforms (so per-monitor resolution and format are respected). Any key
-//! press, mouse button, or real mouse movement exits — closing every window.
+//! uniforms (so per-monitor resolution and format are respected). How it
+//! exits depends on [`DismissMode`]: Escape-only for an explicit run, or any
+//! input when launched by the idle daemon. Exiting closes every window.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -14,8 +15,20 @@ use anyhow::Context;
 use winit::application::ApplicationHandler;
 use winit::event::{DeviceEvent, DeviceId, ElementState, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
+use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::monitor::MonitorHandle;
 use winit::window::{Fullscreen, Window, WindowId};
+
+/// How the saver can be dismissed.
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+pub enum DismissMode {
+    /// Explicit `show`: only the Escape key exits. Stray mouse bumps are ignored.
+    #[default]
+    EscapeOnly,
+    /// Idle-triggered: any key, mouse button, or real movement exits — so the
+    /// returning user dismisses it however they touch the machine.
+    AnyInput,
+}
 
 /// Grace period after launch during which input is ignored, so the keypress or
 /// mouse jiggle that triggered the saver doesn't dismiss it instantly.
@@ -331,6 +344,7 @@ struct App {
     start: Option<Instant>,
     launched_at: Option<Instant>,
     shader_src: String,
+    dismiss: DismissMode,
     /// Set if setup failed inside the event loop, so `run` can report it.
     init_error: Option<anyhow::Error>,
 }
@@ -369,17 +383,25 @@ impl ApplicationHandler for App {
         event: WindowEvent,
     ) {
         let past_grace = self.past_grace();
+        let dismiss = self.dismiss;
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::KeyboardInput { event: ke, .. }
-                if ke.state == ElementState::Pressed && past_grace =>
+                if ke.state == ElementState::Pressed =>
             {
-                event_loop.exit()
+                let is_escape = ke.physical_key == PhysicalKey::Code(KeyCode::Escape);
+                match dismiss {
+                    // Escape always exits, grace or not.
+                    DismissMode::EscapeOnly if is_escape => event_loop.exit(),
+                    // Any key exits once past the grace window.
+                    DismissMode::AnyInput if past_grace => event_loop.exit(),
+                    _ => {}
+                }
             }
             WindowEvent::MouseInput {
                 state: ElementState::Pressed,
                 ..
-            } if past_grace => event_loop.exit(),
+            } if dismiss == DismissMode::AnyInput && past_grace => event_loop.exit(),
             WindowEvent::Resized(size) => {
                 if let Some(gpu) = self.gpu.as_ref() {
                     if let Some(surf) = self.surfaces.get_mut(&id) {
@@ -404,9 +426,11 @@ impl ApplicationHandler for App {
         _id: DeviceId,
         event: DeviceEvent,
     ) {
-        if let DeviceEvent::MouseMotion { delta } = event {
-            if self.past_grace() && delta.0.abs() + delta.1.abs() > 2.0 {
-                event_loop.exit();
+        if self.dismiss == DismissMode::AnyInput {
+            if let DeviceEvent::MouseMotion { delta } = event {
+                if self.past_grace() && delta.0.abs() + delta.1.abs() > 2.0 {
+                    event_loop.exit();
+                }
             }
         }
     }
@@ -430,8 +454,8 @@ mod tests {
 }
 
 /// Run the saver. `shader` is a path to a WGSL file; when `None`, the bundled
-/// default effect is used.
-pub fn run(shader: Option<String>) -> anyhow::Result<()> {
+/// default effect is used. `dismiss` selects how it exits.
+pub fn run(shader: Option<String>, dismiss: DismissMode) -> anyhow::Result<()> {
     let shader_src = match shader {
         Some(path) => std::fs::read_to_string(&path)
             .with_context(|| format!("reading shader file '{path}'"))?,
@@ -442,6 +466,7 @@ pub fn run(shader: Option<String>) -> anyhow::Result<()> {
     event_loop.set_control_flow(ControlFlow::Poll);
     let mut app = App {
         shader_src,
+        dismiss,
         ..Default::default()
     };
     event_loop.run_app(&mut app).context("running event loop")?;

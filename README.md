@@ -7,9 +7,11 @@ idle, and dismisses on any input. Two pieces, mirroring the classic
 xscreensaver split of daemon vs. display hack:
 
 - **`scrnsav watch [secs]`** — a daemon that asks Mutter's `IdleMonitor`
-  (over D-Bus) to notify it after N seconds idle, then launches the saver.
-- **`scrnsav show`** — the fullscreen renderer. Exits on key, mouse button, or
-  real mouse movement. Safe to run directly to preview effects.
+  (over D-Bus) to notify it after N seconds idle, then launches the saver. The
+  idle-triggered saver dismisses on any input (key, mouse button, movement), so
+  the returning user clears it however they touch the machine.
+- **`scrnsav show`** — the fullscreen renderer, for previewing effects. Run
+  directly it exits on **Escape only**, so a stray mouse bump won't close it.
 
 ## Why it works this way (and its limits on GNOME)
 
@@ -38,7 +40,7 @@ A `Makefile` wraps the common flows (`make help` lists them): `make build`,
 ```sh
 cargo build --release
 
-# Preview an effect right now (any input exits):
+# Preview an effect right now (Esc to exit):
 ./target/release/scrnsav show
 
 # Use a different shader instead of the bundled default:

@@ -87,7 +87,9 @@ pub async fn run(timeout_ms: u64, shader: Option<String>) -> anyhow::Result<()> 
 fn spawn_show(shader: Option<&str>) -> anyhow::Result<Child> {
     let exe = std::env::current_exe().context("resolving own executable path")?;
     let mut cmd = std::process::Command::new(exe);
-    cmd.arg("show");
+    // --idle keeps the classic any-input dismiss for the idle-triggered saver;
+    // an explicit `scrnsav show` omits it and exits on Escape only.
+    cmd.arg("show").arg("--idle");
     if let Some(path) = shader {
         cmd.arg("--shader").arg(path);
     }
