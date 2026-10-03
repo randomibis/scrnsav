@@ -41,5 +41,10 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
         sin(v * pi + 4.188 + s),
     ) * 0.5 + 0.5;
 
-    return vec4<f32>(col, 1.0);
+    // Mute the palette: pull each pixel toward its own grey (luminance) to
+    // drop saturation, then scale brightness down so nothing reads as neon.
+    let grey = dot(col, vec3<f32>(0.299, 0.587, 0.114));
+    let muted = mix(vec3<f32>(grey), col, 0.45) * 0.05;
+
+    return vec4<f32>(muted, 1.0);
 }
